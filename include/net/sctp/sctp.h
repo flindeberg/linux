@@ -109,7 +109,8 @@ int sctp_backlog_rcv(struct sock *sk, struct sk_buff *skb);
 int sctp_inet_listen(struct socket *sock, int backlog);
 void sctp_write_space(struct sock *sk);
 void sctp_data_ready(struct sock *sk);
-__poll_t sctp_poll_mask(struct socket *sock, __poll_t events);
+__poll_t sctp_poll(struct file *file, struct socket *sock,
+		poll_table *wait);
 void sctp_sock_rfree(struct sk_buff *skb);
 void sctp_copy_sock(struct sock *newsk, struct sock *sk,
 		    struct sctp_association *asoc);
@@ -150,8 +151,8 @@ int sctp_primitive_RECONF(struct net *net, struct sctp_association *asoc,
  * sctp/input.c
  */
 int sctp_rcv(struct sk_buff *skb);
-void sctp_v4_err(struct sk_buff *skb, u32 info);
-void sctp_hash_endpoint(struct sctp_endpoint *);
+int sctp_v4_err(struct sk_buff *skb, u32 info);
+int sctp_hash_endpoint(struct sctp_endpoint *ep);
 void sctp_unhash_endpoint(struct sctp_endpoint *);
 struct sock *sctp_err_lookup(struct net *net, int family, struct sk_buff *,
 			     struct sctphdr *, struct sctp_association **,
@@ -605,6 +606,23 @@ static inline __u32 sctp_dst_mtu(const struct dst_entry *dst)
 {
 	return SCTP_TRUNC4(max_t(__u32, dst_mtu(dst),
 				 SCTP_DEFAULT_MINSEGMENT));
+}
+
+static inline bool sctp_transport_pmtu_check(struct sctp_transport *t)
+{
+	__u32 pmtu = sctp_dst_mtu(t->dst);
+
+	if (t->pathmtu == pmtu)
+		return true;
+
+	t->pathmtu = pmtu;
+
+	return false;
+}
+
+static inline __u32 sctp_min_frag_point(struct sctp_sock *sp, __u16 datasize)
+{
+	return sctp_mtu_payload(sp, SCTP_DEFAULT_MINSEGMENT, datasize);
 }
 
 #endif /* __net_sctp_h__ */
